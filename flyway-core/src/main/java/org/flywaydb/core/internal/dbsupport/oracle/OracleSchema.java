@@ -118,6 +118,10 @@ public class OracleSchema extends Schema<OracleDbSupport> {
             jdbcTemplate.execute(statement);
         }
 
+        for (String statement : generateDropStatementsForJobs("JOB", "true")) {
+            jdbcTemplate.execute(statement);
+        }
+
         for (Table table : allTables()) {
             table.drop();
         }
@@ -230,6 +234,27 @@ public class OracleSchema extends Schema<OracleDbSupport> {
         List<String> dropStatements = new ArrayList<String>();
         for (String objectName : objectNames) {
             dropStatements.add("DROP " + objectType + " " + dbSupport.quote(name, objectName) + " " + extraArguments);
+        }
+        return dropStatements;
+    }
+
+    /**
+     * Generates the drop statements for all databases jobs
+     *
+     * @param objectType    The type of database object to drop.
+     * @param force         The extra argument whether to force the drop.
+     * @return              The complete drop statements, ready to execute.
+     * @throws SQLException when the drop statements could not be generated.
+     */
+    private List<String> generateDropStatementsForJobs(String objectType, String force) throws SQLException {
+        String query = "SELECT object_name FROM all_objects WHERE object_type = ? AND owner = ?"
+                // Ignore Spatial Index Sequences as they get dropped automatically when the index gets dropped.
+                + " AND object_name NOT LIKE 'MDRS_%$'";
+        List<String> objectNames = jdbcTemplate.queryForStringList(query, objectType, name);
+        List<String> dropStatements = new ArrayList<String>();
+        for (String objectName : objectNames) {
+            dropStatements.add("begin DBMS_SCHEDULER.DROP_JOB( job_name => '" + dbSupport.quote(name, objectName) + "' ,  force => " + force +"); end;");
+            //System.out.println("Statement : "+"begin DBMS_SCHEDULER.DROP_JOB( job_name => '" + dbSupport.quote(name, objectName) + "' ,  force => " + force +"); end;");
         }
         return dropStatements;
     }
